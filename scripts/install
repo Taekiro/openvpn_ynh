@@ -1,46 +1,211 @@
 #!/bin/bash
+
+#=================================================
+# GENERIC START
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
 source /usr/share/yunohost/helpers
 source _common.sh
 
-ynh_trap_on
+#=================================================
+# MANAGE SCRIPT FAILURE
+#=================================================
 
-export app=$YNH_APP_INSTANCE_NAME
-export user=$app
-export webuser="${user}web"
+# Exit if an error occurs during the execution of the script
+ynh_abort_if_errors
 
-# Retrieve arguments
-ynh_export domain path ip4ranges dedicated_ip
-ynh_find_port 1194
-export port=$port
-export local_path=/var/www/$app
-export iface=$(ip r|awk '/default/ { print $5 }')
+#=================================================
+# RETRIEVE ARGUMENTS FROM THE MANIFEST
+#=================================================
+
+domain=$YNH_APP_ARG_DOMAIN
+path_url=$YNH_APP_ARG_PATH
+dedicated_ip=$YNH_APP_ARG_DEDICATED_IP
+ip4ranges=$YNH_APP_ARG_IP4RANGES
+
+app=$YNH_APP_INSTANCE_NAME
+user=$app
+webuser="${user}web"
+final_path="/var/www/$app"
 
 #=================================================
 # CHECK IF THE APP CAN BE INSTALLED WITH THIS ARGS
 #=================================================
+
+ynh_print_info "Validating installation parameters..."
+
+
 ynh_check_var "$app" "app name not set"
-#ynh_user_exists "$admin" || ynh_die "User does not exist: $admin"
-ynh_normalize_url_path "$path"
-ynh_path_validity "$domain$path"
-ynh_local_path_available "$local_path"
 check_iptables
 check_tun_available
 check_ip4ranges $ip4ranges
 
+### If the app uses nginx as web server (written in HTML/PHP in most cases), the final path should be "/var/www/$app".
+### If the app provides an internal web server (or uses another application server such as uwsgi), the final path should be "/opt/yunohost/$app"
+test ! -e "$final_path" || ynh_die --message="This path already contains a folder"
+
+# Register (book) web path
+ynh_webpath_register "$app" "$domain" "$path_url"
+
+#=================================================
+# STORE SETTINGS FROM MANIFEST
+#=================================================
+
+ynh_print_info "Storing installation settings..."
+
+ynh_app_setting_set "$app" domain "$domain"
+ynh_app_setting_set "$app" path "$path_url"
+ynh_app_setting_set "$app" final_path "$final_path"
+ynh_app_setting_set "$app" dedicated_ip "$dedicated_ip"
+ynh_app_setting_set "$app" ip4ranges "$ip4ranges"
+
+#=================================================
+# STANDARD MODIFICATIONS
+#=================================================
+# FIND AND OPEN A PORT
+#=================================================
+
+ynh_print_info "Setting the port..."
+
+# Find a free port
+port=$(ynh_find_port 1194)
+
+# Open this port
+ynh_exec_warn_less yunohost firewall allow --no-upnp TCP $port
+
+# Save setting
+ynh_app_setting_set "$app" port "$port"
+
+#=================================================
+# FIND THE DEFAULT INTERFACE
+#=================================================
+
+ynh_print_info "Setting the interface..."
+
+# Find the interface
+iface=$(ip r|awk '/default/ { print $5 }')
+
+# Save setting
+ynh_app_setting_set "$app" iface "$iface"
+
+#=================================================
+# INSTALL DEPENDENCIES
+#=================================================
+
+ynh_print_info "Installing dependencies..."
+
+ynh_install_app_dependencies "$pkg_dependencies"
+
+#=================================================
+# REGISTER OPENVPN SERVICE
+#=================================================
+
+ynh_print_info "Registering openvpn as a YunoHost service"
+
+yunohost service add "openvpn" --log /var/log/openvpn/status.log
+
+#=================================================
+# NGINX CONFIGURATION
+#=================================================
+
+ynh_print_info "Configuring nginx web server..."
+
+# Create a dedicated nginx config
+ynh_add_nginx_config
+
+#=================================================
+# CREATE DEDICATED USER
+#=================================================
+
+ynh_print_info "Configuring system user..."
+
+# Create a system user
+ynh_system_user_create --username=$app
+
+#=================================================
+# PHP-FPM CONFIGURATION
+#=================================================
+
+ynh_print_info "Configuring php-fpm..."
+
+# Create a dedicated php-fpm config
+ynh_add_fpm_config
 
 #=================================================
 # SETUP THE APP BY MODIFYING THE SYSTEM
 #=================================================
-ynh_save_args ip4ranges port local_path iface dedicated_ip
 
-# Install official debian package
-ynh_app_dependencies openvpn,openvpn-auth-ldap,netmask
+ynh_print_info "Configuring openvpn..."
 
 # Create DH for main domain
 dh_size=1024
-info "Generate dhparam(${dh_size}) file, this step may be long..."
-sudo openssl dhparam -out "/etc/yunohost/certs/${domain}/dh.pem" $dh_size > /dev/null
-sudo openvpn --genkey --secret /etc/openvpn/ta.key
+ynh_print_info "Generate dhparam(${dh_size}) file, this step may be long..."
+openssl dhparam -out "/etc/yunohost/certs/${domain}/dh.pem" $dh_size > /dev/null
+openvpn --genkey --secret /etc/openvpn/ta.key
 
-# Install configured files and restart services 
+# Install configured files and restart services
 setup_and_restart
+
+#=================================================
+# GENERIC FINALIZATION
+#=================================================
+# SECURE FILES AND DIRECTORIES
+#=================================================
+
+### For security reason, any app should set the permissions to root: before anything else.
+### Then, if write authorization is needed, any access should be given only to directories
+### that really need such authorization.
+
+# Set permissions to app files
+chown -R root: $final_path
+
+#=================================================
+# SETUP LOGROTATE
+#=================================================
+
+ynh_print_info "Configuring log rotation..."
+
+# Use logrotate to manage application logfile(s)
+ynh_use_logrotate
+
+#=================================================
+# START SYSTEMD SERVICE
+#=================================================
+
+ynh_print_info "Starting $app systemd service..."
+
+# Start a systemd service
+ynh_systemd_action --service_name=$app --action="start" --log_path="/var/log/$app/$app.log"
+
+#=================================================
+# SETUP FAIL2BAN
+#=================================================
+
+ynh_print_info "Configuring fail2ban..."
+
+# Create a dedicated fail2ban config
+ynh_add_fail2ban_config -t
+
+#=================================================
+# RELOAD NGINX
+#=================================================
+
+ynh_print_info "Reloading nginx web server..."
+
+ynh_systemd_action --service_name=nginx --action=reload
+
+#=================================================
+# RELOAD PHP
+#=================================================
+
+ynh_print_info "Reloading php-fpm..."
+
+ynh_systemd_action --service_name=php7.0-fpm --action=reload
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_print_info "Installation of $app completed"

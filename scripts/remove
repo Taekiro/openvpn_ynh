@@ -1,50 +1,113 @@
 #!/bin/bash
+
+#=================================================
+# GENERIC START
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
 source /usr/share/yunohost/helpers
 source _common.sh
+
+#=================================================
+# RETRIEVE ARGUMENTS FROM THE MANIFEST
+#=================================================
+
+ynh_print_info "Loading installation settings..."
 
 app=$YNH_APP_INSTANCE_NAME
 user=$app
 webuser="${user}web"
 
-local_path=$(ynh_app_setting_get $app local_path)
-domain=$(sudo yunohost app setting $app domain)
+final_path="/var/www/$app"
+domain=$(ynh_app_setting_get $app domain)
+port=$(ynh_app_setting_get $app port)
 
-sudo service openvpn stop
+#=================================================
+# STOP AND REMOVE SERVICES
+#=================================================
 
-sudo rm -f /etc/yunohost/hooks.d/post_iptable_rules/*openvpn
-sudo yunohost firewall disallow UDP 1194 > /dev/null 2>&1
+ynh_print_info "Stopping and removing services"
+
+service $service_name stop
+yunohost service remove $service_name
+
+#=================================================
+# STOP AND REMOVE FIREWALL RULES
+#=================================================
+
+ynh_print_info "Stopping and removing firewall rules"
+
+yunohost firewall disallow UDP $port > /dev/null 2>&1
 rm_firewall_rules
 
-sudo sysctl net.ipv4.ip_forward=0
-sudo yunohost service remove openvpn
+#=================================================
+# SPECIFIC REMOVE
+#=================================================
+
+ynh_print_info "Removing openvpn configuration"
+
+# === sysctl
+
+sysctl net.ipv4.ip_forward=0
+
+# === config
 
 # We don't delete all /etc/openvpn because it could be used by vpnclient_ynh
-sudo rm -rf /etc/openvpn/yunohost.conf \
-  /etc/openvpn/auth \
-  /etc/openvpn/ta.key \
-  /etc/openvpn/users \
-  /etc/openvpn/handler.sh \
-  /etc/openvpn/ip4_attribution.csv \
-  /etc/sysctl.d/openvpn.conf
+ynh_secure_remove /etc/openvpn/server.conf
+ynh_secure_remove /etc/openvpn/auth
+ynh_secure_remove /etc/openvpn/ta.key
+ynh_secure_remove /etc/openvpn/users
+ynh_secure_remove /etc/openvpn/handler.sh
+ynh_secure_remove /etc/openvpn/ip4_attribution.csv
+ynh_secure_remove "/etc/sysctl.d/$service_name.conf"
 
 # TODO: May be we shouldn't remove it
-sudo rm -rf  /var/log/openvpn
+ynh_secure_remove /var/log/openvpn
 
+ynh_secure_remove "$final_path"
+ynh_secure_remove "/etc/yunohost/certs/${domain}/dh.pem"
 
-ynh_secure_rm "$local_path"
-ynh_secure_rm "/etc/yunohost/certs/${domain}/dh.pem"
-ynh_secure_rm "/etc/nginx/conf.d/${domain}.d/openvpn.conf"
-ynh_secure_rm "/etc/logrotate.d/$app.conf"
-ynh_secure_rm "/etc/fail2ban/filter.d/$app.conf"
-ynh_secure_rm "/etc/fail2ban/jail.d/${app}.conf"
+#=================================================
+# REMOVE DEPENDENCIES
+#=================================================
 
-ynh_rm_nginx_conf
-ynh_rm_php_fpm_conf
+ynh_print_info "Removing dependencies..."
+
+# Remove metapackage and its dependencies
+ynh_remove_app_dependencies
+
+#=================================================
+# REMOVE NGINX CONFIGURATION
+#=================================================
+
+ynh_print_info "Removing nginx web server configuration"
+
+# Remove the dedicated nginx config
+ynh_remove_nginx_config
+
+#=================================================
+# REMOVE PHP-FPM CONFIGURATION
+#=================================================
+
+ynh_print_info "Removing php-fpm configuration"
+
+# Remove the dedicated php-fpm config
+ynh_remove_fpm_config
+
+#=================================================
+# REMOVE DEDICATED USER
+#=================================================
+
+ynh_print_info "Removing the dedicated system user"
 
 ynh_system_user_delete "$user"
 ynh_system_user_delete "$webuser"
 
-dep_app=${app/__/-}
-ynh_package_remove $dep_app-ynh-deps
+ynh_secure_remove "/etc/sudoers.d/${app}_ynh"
 
-sudo yunohost app ssowatconf
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_print_info "Removal of $app completed"
