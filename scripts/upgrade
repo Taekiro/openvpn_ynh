@@ -12,38 +12,48 @@ source _common.sh
 #=================================================
 # LOAD SETTINGS
 #=================================================
-ynh_print_info "Loading installation settings..."
+ynh_script_progression --message="Loading installation settings..." --time --weight=1
 
 app=$YNH_APP_INSTANCE_NAME
 
-domain=$(ynh_app_setting_get $app domain)
-path_url=$(ynh_app_setting_get $app path)
+domain=$(ynh_app_setting_get --app=$app --key=domain)
+path_url=$(ynh_app_setting_get --app=$app --key=path)
+final_path=$(ynh_app_setting_get --app=$app --key=final_path)
 
 user=$app
 webuser="${user}web"
 
-export domain=$(ynh_app_setting_get $app domain)
-domain=${prefix:-$(cat /etc/yunohost/current_host)}
-export path=$(ynh_app_setting_get $app path)
-path=${path:-/openvpn/}
-export final_path=$(ynh_app_setting_get $app final_path)
-final_path=${final_path:-/var/www/$app}
-export iface=$(ynh_app_setting_get $app iface)
-iface=${iface:-$(ip r|awk '/default/ { print $5 }')}
-export port=$(ynh_app_setting_get $app port)
-port=${port:-1194}
-export ip4ranges=$(ynh_app_setting_get $app ip4ranges)
-ip4ranges=${ip4ranges:-10.0.0.8/24}
-export dynamic_ip=$(ynh_app_setting_get $app dynamic_ip)
-dynamic_ip=${dynamic_ip:-false}
+#=================================================
+# CHECK VERSION
+#=================================================
 
+### This helper will compare the version of the currently installed app and the version of the upstream package.
+### $upgrade_type can have 2 different values
+### - UPGRADE_APP if the upstream app version has changed
+### - UPGRADE_PACKAGE if only the YunoHost package has changed
+### ynh_check_app_version_changed will stop the upgrade if the app is up to date.
+### UPGRADE_APP should be used to upgrade the core app only if there's an upgrade to do.
+upgrade_type=$(ynh_check_app_version_changed)
 
-version=$(ynh_read_json "/etc/yunohost/apps/$app/manifest.json" 'version' 2> /dev/null || echo '2.3.4-1')
-last_version=$(ynh_read_manifest 'version')
+#=================================================
+# CHECK THE PATH
+#=================================================
 
-ynh_exit_if_up_to_date
-ynh_check_var "$app" "app name not set"
-ynh_normalize_url_path "$path"
+path_url=$(ynh_normalize_url_path --path_url=$path_url)
+
+#=================================================
+# ENSURE DOWNWARD COMPATIBILITY
+#=================================================
+ynh_script_progression --message="Ensuring downward compatibility..." --time --weight=1
+
+# If final_path doesn't exist, create it
+if [ -z "$final_path" ]; then
+    final_path=/var/www/$app
+    ynh_app_setting_set --app=$app --key=final_path --value=$final_path
+fi
+
+# Get version
+version=$ynh_app_package_version
 
 if [ "${version}" = "2.3.4-1" ]; then
     ynh_save_args domain path ip4ranges port final_path iface dynamic_ip
@@ -56,6 +66,8 @@ if [ "${version}" = "2.3.4-1" ]; then
 
     # Install configured files and restart services
     setup_and_restart
+
+    yunohost service add "openvpn" --log /var/log/openvpn/status.log --description "OpenVPN server"
 
     mv /var/log/openvpn.log /var/log/openvpn/status.log
 fi
@@ -73,8 +85,7 @@ fi
 #=================================================
 # BACKUP BEFORE UPGRADE THEN ACTIVE TRAP
 #=================================================
-
-ynh_print_info "Backing up the app before upgrading (may take a while)..."
+ynh_script_progression --message="Backing up the app before upgrading (may take a while)..." --time --weight=1
 
 # Backup the current version of the app
 
@@ -88,15 +99,105 @@ ynh_clean_setup () {
 ynh_abort_if_errors
 
 #=================================================
-# UPGRADE DEPENDENCIES
+# CHECK THE PATH
 #=================================================
 
-ynh_print_info "Upgrading dependencies..."
+# Normalize the URL path syntax
+# N.B. : this is for app installations before YunoHost 2.7
+# where this value might be something like /foo/ or foo/
+# instead of /foo ....
+# If nobody installed your app before 2.7, then you may
+# safely remove this line
+path_url=$(ynh_normalize_url_path --path_url=$path_url)
+
+#=================================================
+# STANDARD UPGRADE STEPS
+#=================================================
+# STOP SYSTEMD SERVICE
+#=================================================
+ynh_script_progression --message="Stopping a systemd service..." --time --weight=1
+
+ynh_systemd_action --service_name=$app --action="stop" --log_path="/var/log/$app/$app.log"
+
+#=================================================
+# NGINX CONFIGURATION
+#=================================================
+ynh_script_progression --message="Upgrading nginx web server configuration..." --time --weight=1
+
+# Create a dedicated nginx config
+ynh_add_nginx_config
+
+#=================================================
+# PHP-FPM CONFIGURATION
+#=================================================
+ynh_script_progression --message="Upgrading php-fpm configuration..." --time --weight=1
+
+# Create a dedicated php-fpm config
+ynh_add_fpm_config
+
+#=================================================
+# UPGRADE DEPENDENCIES
+#=================================================
+ynh_script_progression --message="Upgrading dependencies..." --time --weight=1
 
 ynh_install_app_dependencies $pkg_dependencies
 
 #=================================================
+# CREATE DEDICATED USER
+#=================================================
+ynh_script_progression --message="Making sure dedicated system users exists..." --time --weight=1
+
+# Create a dedicated user (if not existing)
+ynh_system_user_create --username=$app --home_dir="/etc/openvpn/"
+webuser=${app}web
+ynh_system_user_create --username=$webuser --home_dir="$final_path"
+
+#=================================================
+# GENERIC FINALIZATION
+#=================================================
+# UPGRADE FAIL2BAN
+#=================================================
+ynh_script_progression --message="Configuring fail2ban..." --time --weight=1
+
+ynh_replace_string --match_string="__APP__" --replace_string="$app" --target_file=fail2ban-jail.conf
+ynh_replace_string --match_string="__PORT__" --replace_string="$port" --target_file=fail2ban-jail.conf
+
+# Create a dedicated fail2ban config
+ynh_add_fail2ban_config --use_template
+
+#=================================================
+# SECURE FILES AND DIRECTORIES
+#=================================================
+ynh_script_progression --message="Secure files and directories..." --time --weight=1
+
+# Set permissions on app files
+chown -R $webuser: "$final_path"
+chmod -R 664 "$final_path"
+find "$final_path" -type d -print0 | xargs -0 chmod 775
+
+chown -R $webuser:www-data "$final_path"
+chmod 640 "$final_path/$domain.conf"
+chmod 640 "$final_path/$domain.ovpn"
+chown -R $app: /var/log/openvpn
+chown -R $app: /etc/openvpn
+chmod 640 /etc/openvpn/users_settings.csv
+chmod u+x /etc/openvpn/handler.sh
+
+#=================================================
+# START SYSTEMD SERVICE
+#=================================================
+ynh_script_progression --message="Starting a systemd service..." --time --weight=1
+
+ynh_systemd_action --service_name=openvpn --action=start
+
+#=================================================
+# RELOAD NGINX
+#=================================================
+ynh_script_progression --message="Reloading nginx web server..." --time --weight=1
+
+ynh_systemd_action --service_name=nginx --action=reload
+
+#=================================================
 # END OF SCRIPT
 #=================================================
-
-ynh_print_info "Upgrade of $app completed"
+ynh_script_progression --message="Upgrade of $app completed" --time --last

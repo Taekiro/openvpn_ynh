@@ -12,40 +12,64 @@ source _common.sh
 #=================================================
 # RETRIEVE ARGUMENTS FROM THE MANIFEST
 #=================================================
-
-ynh_print_info "Loading installation settings..."
+ynh_script_progression --message="Loading installation settings..." --time --weight=1
 
 app=$YNH_APP_INSTANCE_NAME
-user=$app
-webuser="${user}web"
 
-final_path="/var/www/$app"
-domain=$(ynh_app_setting_get $app domain)
-port=$(ynh_app_setting_get $app port)
+domain=$(ynh_app_setting_get --app=$app --key=domain)
+port=$(ynh_app_setting_get --app=$app --key=port)
+final_path=$(ynh_app_setting_get --app=$app --key=final_path)
+ip4ranges=$(ynh_app_setting_get --app=$app --key=ip4ranges)
+iface=$(ynh_app_setting_get --app=$app --key=iface)
 
 #=================================================
-# STOP AND REMOVE SERVICES
+# STANDARD REMOVE
+#=================================================
+# REMOVE SERVICE FROM ADMIN PANEL
 #=================================================
 
-ynh_print_info "Stopping and removing services"
+# Remove a service from the admin panel, added by `yunohost service add`
+if ynh_exec_warn_less yunohost service status $app >/dev/null
+then
+    ynh_script_progression --message="Removing $app service..." --time --weight=1
+    yunohost service remove $app
+fi
 
-service $service_name stop
-yunohost service remove $service_name
+#=================================================
+# STOP AND REMOVE SERVICE
+#=================================================
+ynh_script_progression --message="Stopping the systemd service..." --time --weight=1
+
+ynh_systemd_action --service_name=$app --action=stop
 
 #=================================================
 # STOP AND REMOVE FIREWALL RULES
 #=================================================
-
-ynh_print_info "Stopping and removing firewall rules"
+ynh_script_progression --message="Stopping and removing firewall rules..."
 
 yunohost firewall disallow UDP $port > /dev/null 2>&1
 rm_firewall_rules
 
 #=================================================
+# REMOVE DEPENDENCIES
+#=================================================
+ynh_script_progression --message="Removing dependencies..." --time --weight=1
+
+# Remove metapackage and its dependencies
+ynh_remove_app_dependencies
+
+#=================================================
+# REMOVE APP MAIN DIR
+#=================================================
+ynh_script_progression --message="Removing app main directory..." --time --weight=1
+
+# Remove the app directory securely
+ynh_secure_remove --file="$final_path"
+
+#=================================================
 # SPECIFIC REMOVE
 #=================================================
-
-ynh_print_info "Removing openvpn configuration"
+ynh_script_progression --message="Removing openvpn configuration..." --time --weight=1
 
 # === sysctl
 
@@ -54,34 +78,27 @@ sysctl net.ipv4.ip_forward=0
 # === config
 
 # We don't delete all /etc/openvpn because it could be used by vpnclient_ynh
-ynh_secure_remove /etc/openvpn/server.conf
-ynh_secure_remove /etc/openvpn/auth
-ynh_secure_remove /etc/openvpn/ta.key
-ynh_secure_remove /etc/openvpn/users
-ynh_secure_remove /etc/openvpn/handler.sh
-ynh_secure_remove /etc/openvpn/ip4_attribution.csv
-ynh_secure_remove "/etc/sysctl.d/$service_name.conf"
+ynh_secure_remove --file="/etc/openvpn/server.conf"
+ynh_secure_remove --file="/etc/openvpn/auth"
+ynh_secure_remove --file="/etc/openvpn/ta.key"
+ynh_secure_remove --file="/etc/openvpn/users"
+ynh_secure_remove --file="/etc/openvpn/handler.sh"
+ynh_secure_remove --file="/etc/openvpn/ip4_attribution.csv"
+ynh_secure_remove --file="/etc/sysctl.d/openvpn.conf"
 
 # TODO: May be we shouldn't remove it
-ynh_secure_remove /var/log/openvpn
+ynh_secure_remove --file="/var/log/openvpn"
 
-ynh_secure_remove "$final_path"
-ynh_secure_remove "/etc/yunohost/certs/${domain}/dh.pem"
+ynh_secure_remove --file="$final_path"
+ynh_secure_remove --file="/etc/yunohost/certs/${domain}/dh.pem"
 
-#=================================================
-# REMOVE DEPENDENCIES
-#=================================================
-
-ynh_print_info "Removing dependencies..."
-
-# Remove metapackage and its dependencies
-ynh_remove_app_dependencies
+# Remove hook files
+ynh_secure_remove --file="/etc/yunohost/hooks.d/post_iptable_rules/*openvpn"
 
 #=================================================
 # REMOVE NGINX CONFIGURATION
 #=================================================
-
-ynh_print_info "Removing nginx web server configuration"
+ynh_script_progression --message="Removing nginx web server configuration..." --time --weight=1
 
 # Remove the dedicated nginx config
 ynh_remove_nginx_config
@@ -89,25 +106,55 @@ ynh_remove_nginx_config
 #=================================================
 # REMOVE PHP-FPM CONFIGURATION
 #=================================================
-
-ynh_print_info "Removing php-fpm configuration"
+ynh_script_progression --message="Removing php-fpm configuration..." --time --weight=1
 
 # Remove the dedicated php-fpm config
 ynh_remove_fpm_config
 
 #=================================================
+# REMOVE LOGROTATE CONFIGURATION
+#=================================================
+ynh_script_progression --message="Removing logrotate configuration..." --time --weight=1
+
+# Remove the app-specific logrotate config
+ynh_remove_logrotate
+
+#=================================================
+# CLOSE A PORT
+#=================================================
+ynh_script_progression --message="Closing port $port..." --time --weight=1
+
+if yunohost firewall list | grep -q "\- $port$"
+then
+    ynh_script_progression --message="Closing port $port..."
+    ynh_exec_warn_less yunohost firewall disallow TCP $port
+fi
+
+# Remove masquerade rules
+
+ynh_script_progression --message="Removing firewall rules..." --time --weight=1
+rm_firewall_rules
+
+#=================================================
+# REMOVE FAIL2BAN CONFIGURATION
+#=================================================
+ynh_script_progression --message="Removing fail2ban configuration..." --time --weight=1
+
+# Remove the dedicated fail2ban config
+ynh_remove_fail2ban_config
+
+#=================================================
+# GENERIC FINALIZATION
+#=================================================
 # REMOVE DEDICATED USER
 #=================================================
+ynh_script_progression --message="Removing the dedicated system users..." --time --weight=1
 
-ynh_print_info "Removing the dedicated system user"
-
+# Delete a system user
 ynh_system_user_delete "$user"
 ynh_system_user_delete "$webuser"
-
-ynh_secure_remove "/etc/sudoers.d/${app}_ynh"
 
 #=================================================
 # END OF SCRIPT
 #=================================================
-
-ynh_print_info "Removal of $app completed"
+ynh_script_progression --message="Removal of $app completed" --time --last

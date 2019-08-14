@@ -19,7 +19,7 @@ ynh_abort_if_errors
 #=================================================
 # LOAD SETTINGS
 #=================================================
-ynh_print_info "Loading settings..."
+ynh_script_progression --message="Loading installation settings..." --time --weight=1
 
 app=$YNH_APP_INSTANCE_NAME
 user=$app
@@ -37,42 +37,91 @@ dedicated_ip=$(ynh_app_setting_get $app dedicated_ip)
 #=================================================
 # CHECK IF THE APP CAN BE RESTORED
 #=================================================
-ynh_print_info "Validating restoration parameters..."
+ynh_script_progression --message="Validating restoration parameters..." --time --weight=1
 
 ynh_webpath_available $domain $path_url \
     || ynh_die "Path not available: ${domain}${path_url}"
     test ! -d $final_path \
     || ynh_die "There is already a directory: $final_path "
 
-check_iptables
-check_tun_available
+# Check if iptables is working
+if ! iptables -L > /dev/null 2>&1
+then
+    ynh_die --message="iptables is not available in your environment, aborting..."
+fi
 
-#=================================================
-# RESTORE THE APP BY MODIFYING THE SYSTEM
-#=================================================
+# Ensure that tun device is still available, otherwise try to create it manually
+if [ ! -c /dev/net/tun ]
+then
+    mkdir -p /dev/net
+    mknod /dev/net/tun c 10 200
+    chmod 666 /dev/net/tun
+fi
 
 #=================================================
 # REINSTALL DEPENDENCIES
 #=================================================
-
-ynh_print_info "Reinstalling dependencies..."
+ynh_script_progression --message="Reinstalling dependencies..." --time --weight=1
 
 # Define and install dependencies
 ynh_install_app_dependencies "$pkg_dependencies"
 
-install_files () {
-    ynh_restore
-}
+#=================================================
+# ADVERTISE SERVICE IN ADMIN PANEL
+#=================================================
+ynh_script_progression --message="Register service $app on admin panel..." --time --weight=1
 
-setup_and_restart
+yunohost service add $app --log "/var/log/$app/$app.log" --description "OpenVPN server"
+
+#=================================================
+# STUFF NOT YET SORTED...
+#=================================================
+
+# Ensure that tun device is still available, otherwise try to create it manually
+if [ ! -c /dev/net/tun ]
+then
+    mkdir -p /dev/net
+    mknod /dev/net/tun c 10 200
+    chmod 666 /dev/net/tun
+fi
+
+# Add masquerade rules
+add_firewall_rules
+
+#=================================================
+# RESTORE THE LOGROTATE CONFIGURATION
+#=================================================
+ynh_script_progression --message="Restore logrotate configuration" --time --weight=1
+
+ynh_restore_file --origin_path="/etc/logrotate.d/$app"
+
+#=================================================
+# RESTORE SPECIFIC FILES
+#=================================================
+ynh_script_progression --message="Restore specific files..." --time --weight=1
+
+ynh_restore_file --origin_path="/etc/openvpn"
+ynh_restore_file --origin_path="/etc/yunohost/certs/$domain/dh.pem"
+ynh_restore_file --origin_path="/etc/sysctl.d/openvpn.conf"
+ynh_restore_file --origin_path="/var/log/openvpn"
+sysctl -p /etc/sysctl.d/openvpn.conf
+
+#=================================================
+# START SYSTEMD SERVICE
+#=================================================
+ynh_script_progression --message="Starting systemd service $app..." --time --weight=1
+
+yunohost service enable $app
+
+# Start a systemd service
+ynh_systemd_action --service_name=$app --action=start
 
 #=================================================
 # GENERIC FINALIZATION
 #=================================================
 # RELOAD NGINX AND PHP-FPM
 #=================================================
-
-ynh_print_info "Setting Nginx and php-fpm..."
+ynh_script_progression --message="Reloading nginx web server and php-fpm..." --time --weight=1
 
 ynh_systemd_action --service_name=php7.0-fpm --action=reload
 ynh_systemd_action --service_name=nginx --action=reload
@@ -80,5 +129,4 @@ ynh_systemd_action --service_name=nginx --action=reload
 #=================================================
 # END OF SCRIPT
 #=================================================
-
-ynh_print_info "Restoration completed for $app"
+ynh_script_progression --message="Restoration completed for $app" --time --last

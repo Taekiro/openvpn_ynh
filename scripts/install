@@ -6,8 +6,8 @@
 # IMPORT GENERIC HELPERS
 #=================================================
 
-source /usr/share/yunohost/helpers
 source _common.sh
+source /usr/share/yunohost/helpers
 
 #=================================================
 # MANAGE SCRIPT FAILURE
@@ -28,32 +28,52 @@ ip4ranges=$YNH_APP_ARG_IP4RANGES
 app=$YNH_APP_INSTANCE_NAME
 user=$app
 webuser="${user}web"
-final_path="/var/www/$app"
 
 #=================================================
 # CHECK IF THE APP CAN BE INSTALLED WITH THIS ARGS
 #=================================================
-
-ynh_print_info "Validating installation parameters..."
-
-
-ynh_check_var "$app" "app name not set"
-check_iptables
-check_tun_available
-check_ip4ranges $ip4ranges
+ynh_script_progression --message="Validating installation parameters..." --time --weight=1
 
 ### If the app uses nginx as web server (written in HTML/PHP in most cases), the final path should be "/var/www/$app".
 ### If the app provides an internal web server (or uses another application server such as uwsgi), the final path should be "/opt/yunohost/$app"
+final_path=/var/www/$app
 test ! -e "$final_path" || ynh_die --message="This path already contains a folder"
 
 # Register (book) web path
 ynh_webpath_register "$app" "$domain" "$path_url"
 
+# Check if iptables is working
+if ! iptables -L > /dev/null 2>&1
+then
+    ynh_die --message="iptables is not available in your environment, aborting..."
+fi
+
+ynh_script_progression --message="Checking if tun interface is available..." --time --weight=1
+# Ensure that tun device is still available, otherwise try to create it manually
+if [ ! -c /dev/net/tun ]
+then
+    mkdir -p /dev/net
+    mknod /dev/net/tun c 10 200
+    chmod 666 /dev/net/tun
+fi
+
+ynh_script_progression --message="Checking if IPv4 range argument..." --time --weight=1
+# Check IPv4 range argument
+_255='(25[0-5]|2[0-4][0-9]|1?[0-9][0-9]?)'
+ip4regex=(${_255}\.){3}${_255}
+rangeip4regex="${ip4regex}(/(3[0-2]|[1-2][0-9]|[1-9]))?"
+regex="${rangeip4regex}([[:space:]]+${rangeip4regex})*"
+if [[ $ip4ranges =~ ^${regex}$ ]]
+then
+    echo "IPv4 ranges format ok"
+else
+    ynh_die --message="Bad Ipv4 ranges format, aborting..."
+fi
+
 #=================================================
 # STORE SETTINGS FROM MANIFEST
 #=================================================
-
-ynh_print_info "Storing installation settings..."
+ynh_script_progression --message="Storing installation settings..." --time --weight=1
 
 ynh_app_setting_set "$app" domain "$domain"
 ynh_app_setting_set "$app" path "$path_url"
@@ -66,8 +86,7 @@ ynh_app_setting_set "$app" ip4ranges "$ip4ranges"
 #=================================================
 # FIND AND OPEN A PORT
 #=================================================
-
-ynh_print_info "Setting the port..."
+ynh_script_progression --message="Setting the port..." --time --weight=1
 
 # Find a free port
 port=$(ynh_find_port 1194)
@@ -81,8 +100,7 @@ ynh_app_setting_set "$app" port "$port"
 #=================================================
 # FIND THE DEFAULT INTERFACE
 #=================================================
-
-ynh_print_info "Setting the interface..."
+ynh_script_progression --message="Setting the interface..." --time --weight=1
 
 # Find the interface
 iface=$(ip r|awk '/default/ { print $5 }')
@@ -93,24 +111,21 @@ ynh_app_setting_set "$app" iface "$iface"
 #=================================================
 # INSTALL DEPENDENCIES
 #=================================================
-
-ynh_print_info "Installing dependencies..."
+ynh_script_progression --message="Installing dependencies..." --time --weight=1
 
 ynh_install_app_dependencies "$pkg_dependencies"
 
 #=================================================
-# REGISTER OPENVPN SERVICE
+# REGISTER OPENVPN SERVICE ON ADMIN PANEL
 #=================================================
+ynh_script_progression --message="Registering openvpn as a YunoHost service..." --time --weight=1
 
-ynh_print_info "Registering openvpn as a YunoHost service"
-
-yunohost service add "openvpn" --log /var/log/openvpn/status.log
+yunohost service add openvpn --log /var/log/openvpn/status.log --description "OpenVPN server"
 
 #=================================================
 # NGINX CONFIGURATION
 #=================================================
-
-ynh_print_info "Configuring nginx web server..."
+ynh_script_progression --message="Configuring nginx web server..." --time --weight=1
 
 # Create a dedicated nginx config
 ynh_add_nginx_config
@@ -118,8 +133,7 @@ ynh_add_nginx_config
 #=================================================
 # CREATE DEDICATED USER
 #=================================================
-
-ynh_print_info "Configuring system user..."
+ynh_script_progression --message="Configuring system user..." --time --weight=1
 
 # Create a system user
 ynh_system_user_create --username=$app
@@ -127,8 +141,7 @@ ynh_system_user_create --username=$app
 #=================================================
 # PHP-FPM CONFIGURATION
 #=================================================
-
-ynh_print_info "Configuring php-fpm..."
+ynh_script_progression --message="Configuring php-fpm..." --time --weight=1
 
 # Create a dedicated php-fpm config
 ynh_add_fpm_config
@@ -136,23 +149,34 @@ ynh_add_fpm_config
 #=================================================
 # SETUP THE APP BY MODIFYING THE SYSTEM
 #=================================================
-
-ynh_print_info "Configuring openvpn..."
+ynh_script_progression --message="Generate dhparam file, this step may be long..." --time --weight=3
 
 # Create DH for main domain
 dh_size=1024
-ynh_print_info "Generate dhparam(${dh_size}) file, this step may be long..."
 openssl dhparam -out "/etc/yunohost/certs/${domain}/dh.pem" $dh_size > /dev/null
 openvpn --genkey --secret /etc/openvpn/ta.key
 
 # Install configured files and restart services
+ynh_script_progression --message="Setup openvpn and restart..." --time --weight=1
 setup_and_restart
+
+# Ensure that tun device is still available, otherwise try to create it manually
+if [ ! -c /dev/net/tun ]
+then
+    mkdir -p /dev/net
+    mknod /dev/net/tun c 10 200
+    chmod 666 /dev/net/tun
+fi
+
+# Add masquerade rules
+add_firewall_rules
 
 #=================================================
 # GENERIC FINALIZATION
 #=================================================
 # SECURE FILES AND DIRECTORIES
 #=================================================
+ynh_script_progression --message="Secure files and directories..." --time --weight=1
 
 ### For security reason, any app should set the permissions to root: before anything else.
 ### Then, if write authorization is needed, any access should be given only to directories
@@ -164,8 +188,7 @@ chown -R root: $final_path
 #=================================================
 # SETUP LOGROTATE
 #=================================================
-
-ynh_print_info "Configuring log rotation..."
+ynh_script_progression --message="Configuring log rotation..." --time --weight=1
 
 # Use logrotate to manage application logfile(s)
 ynh_use_logrotate
@@ -173,8 +196,7 @@ ynh_use_logrotate
 #=================================================
 # START SYSTEMD SERVICE
 #=================================================
-
-ynh_print_info "Starting $app systemd service..."
+ynh_script_progression --message="Starting $app systemd service..." --time --weight=1
 
 # Start a systemd service
 ynh_systemd_action --service_name=$app --action="start" --log_path="/var/log/$app/$app.log"
@@ -182,8 +204,7 @@ ynh_systemd_action --service_name=$app --action="start" --log_path="/var/log/$ap
 #=================================================
 # SETUP FAIL2BAN
 #=================================================
-
-ynh_print_info "Configuring fail2ban..."
+ynh_script_progression --message="Configuring fail2ban..." --time --weight=1
 
 # Create a dedicated fail2ban config
 ynh_add_fail2ban_config -t
@@ -191,21 +212,18 @@ ynh_add_fail2ban_config -t
 #=================================================
 # RELOAD NGINX
 #=================================================
-
-ynh_print_info "Reloading nginx web server..."
+ynh_script_progression --message="Reloading nginx web server..." --time --weight=1
 
 ynh_systemd_action --service_name=nginx --action=reload
 
 #=================================================
 # RELOAD PHP
 #=================================================
-
-ynh_print_info "Reloading php-fpm..."
+ynh_script_progression --message="Reloading php-fpm..." --time --weight=1
 
 ynh_systemd_action --service_name=php7.0-fpm --action=reload
 
 #=================================================
 # END OF SCRIPT
 #=================================================
-
-ynh_print_info "Installation of $app completed"
+ynh_script_progression --message="Installation of $app completed" --time --last
