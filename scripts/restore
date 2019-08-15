@@ -147,7 +147,6 @@ ynh_restore_file --origin_path="/etc/logrotate.d/$app"
 ynh_script_progression --message="Restore specific files..." --time --weight=1
 
 ynh_restore_file --origin_path="/etc/openvpn"
-ynh_restore_file --origin_path="/etc/yunohost/certs/$domain/dh.pem"
 ynh_restore_file --origin_path="/etc/sysctl.d/openvpn.conf"
 ynh_restore_file --origin_path="/var/log/openvpn"
 sysctl -p /etc/sysctl.d/openvpn.conf

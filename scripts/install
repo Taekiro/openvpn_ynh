@@ -153,7 +153,7 @@ ynh_script_progression --message="Generate dhparam file, this step may be long..
 
 # Create DH for main domain
 dh_size=1024
-openssl dhparam -out "/etc/yunohost/certs/${domain}/dh.pem" $dh_size > /dev/null
+openssl dhparam -out "/etc/openvpn/dh.pem" $dh_size > /dev/null
 openvpn --genkey --secret /etc/openvpn/ta.key
 
 # Install configured files and restart services

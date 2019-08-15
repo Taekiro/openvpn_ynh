@@ -90,7 +90,7 @@ ynh_secure_remove --file="/etc/sysctl.d/openvpn.conf"
 ynh_secure_remove --file="/var/log/openvpn"
 
 ynh_secure_remove --file="$final_path"
-ynh_secure_remove --file="/etc/yunohost/certs/${domain}/dh.pem"
+ynh_secure_remove --file="/etc/openvpn/dh.pem"
 
 # Remove hook files
 ynh_secure_remove --file="/etc/yunohost/hooks.d/post_iptable_rules/*openvpn"
