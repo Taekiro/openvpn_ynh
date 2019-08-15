@@ -57,7 +57,7 @@ fi
 version=$ynh_app_package_version
 
 if [ "${version}" = "2.3.4-1" ]; then
-    ynh_save_args domain path ip4ranges port final_path iface dynamic_ip
+    ynh_save_args domain path ip4ranges port final_path iface
 
     # Install official debian package
     ynh_app_dependencies openvpn,openvpn-auth-ldap,netmask
