@@ -20,13 +20,9 @@ max-clients 30
 # TLS
 tls-server
 
-# N.B. : despite all apperance, this file is actually a CA cert for *the
-# (initial!) main domain* of the server - not a cert for yunohost.org. You can
-# check it using 'openssl x509 ...'
-ca   /etc/ssl/certs/ca-yunohost_crt.pem
-
-cert /etc/yunohost/certs/{{ domain }}/crt.pem
-key  /etc/yunohost/certs/{{ domain }}/key.pem
+ca   {{ base_cert_path }}/ca.pem
+cert {{ domain }}/crt.pem
+key  {{ domain }}/key.pem
 dh   /etc/openvpn/dh.pem
 ; When a client connects, check its certificate hasn't been revoked.
 ; Must be accessible without root privileges
