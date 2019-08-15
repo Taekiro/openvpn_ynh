@@ -133,15 +133,6 @@ ynh_script_progression --message="Restore logrotate configuration" --time --weig
 ynh_restore_file --origin_path="/etc/logrotate.d/$app"
 
 #=================================================
-# RESTORE FAIL2BAN CONFIGURATION
-#=================================================
-ynh_script_progression --message="Restoring the fail2ban configuration..." --time --weight=1
-
-ynh_restore_file "/etc/fail2ban/jail.d/$app.conf"
-ynh_restore_file "/etc/fail2ban/filter.d/$app.conf"
-ynh_systemd_action --action=restart --service_name=fail2ban
-
-#=================================================
 # RESTORE SPECIFIC FILES
 #=================================================
 ynh_script_progression --message="Restore specific files..." --time --weight=1
@@ -150,6 +141,15 @@ ynh_restore_file --origin_path="/etc/openvpn"
 ynh_restore_file --origin_path="/etc/sysctl.d/openvpn.conf"
 ynh_restore_file --origin_path="/var/log/openvpn"
 sysctl -p /etc/sysctl.d/openvpn.conf
+
+#=================================================
+# RESTORE FAIL2BAN CONFIGURATION
+#=================================================
+ynh_script_progression --message="Restoring the fail2ban configuration..." --time --weight=1
+
+ynh_restore_file "/etc/fail2ban/jail.d/$app.conf"
+ynh_restore_file "/etc/fail2ban/filter.d/$app.conf"
+ynh_systemd_action --action=restart --service_name=fail2ban
 
 #=================================================
 # START SYSTEMD SERVICE
