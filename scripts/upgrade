@@ -159,11 +159,8 @@ ynh_system_user_create --username=$webuser --home_dir="$final_path"
 #=================================================
 ynh_script_progression --message="Configuring fail2ban..." --time --weight=1
 
-ynh_replace_string --match_string="__APP__" --replace_string="$app" --target_file=fail2ban-jail.conf
-ynh_replace_string --match_string="__PORT__" --replace_string="$port" --target_file=fail2ban-jail.conf
-
 # Create a dedicated fail2ban config
-ynh_add_fail2ban_config --use_template
+ynh_add_fail2ban_config --use_template --others_var="app port"
 
 #=================================================
 # SECURE FILES AND DIRECTORIES
