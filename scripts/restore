@@ -31,7 +31,6 @@ final_path=$(ynh_app_setting_get $app final_path)
 iface=$(ynh_app_setting_get $app iface)
 port=$(ynh_app_setting_get $app port)
 ip4ranges=$(ynh_app_setting_get $app ip4ranges)
-dynamic_ip=$(ynh_app_setting_get $app dynamic_ip)
 dedicated_ip=$(ynh_app_setting_get $app dedicated_ip)
 
 #=================================================
