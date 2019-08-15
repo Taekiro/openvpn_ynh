@@ -51,7 +51,7 @@ install_files () {
 
     # Configurations
     set +x
-    export ca_yunohost=$(cat /etc/ssl/certs/ca-yunohost_crt.pem)
+    export ca_yunohost=$(cat /etc/yunohost/certs/yunohost.org/ca.pem)
     export ta_key=$(cat /etc/openvpn/ta.key)
     export domain=$domain
     export port=$port
@@ -61,7 +61,6 @@ install_files () {
     install -b -o root -g root -m 0644 ../conf/client.conf.j2 /etc/openvpn/
     install -b -o root -g root -m 0644 ../conf/client.ovpn.j2 /etc/openvpn/
     install -b -o root -g root -m 0644 ../conf/ldap.conf /etc/openvpn/auth/
-    ln -s /etc/ssl/certs/ca-yunohost_crt.pem "${final_path}/ca.crt"
     cp ../conf/handler.sh /etc/openvpn/handler.sh
     touch /etc/openvpn/crl.pem
     echo "$ip4ranges" | tee /etc/openvpn/ip4ranges
