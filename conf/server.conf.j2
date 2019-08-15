@@ -21,8 +21,8 @@ max-clients 30
 tls-server
 
 ca   /etc/yunohost/certs/yunohost.org/ca.pem
-cert /etc/yunohost/certs/{{ domain }}/crt.pem
-key  /etc/yunohost/certs/{{ domain }}/key.pem
+cert /etc/yunohost/certs/yunohost.org/crt.pem
+key  /etc/yunohost/certs/yunohost.org/key.pem
 dh   /etc/openvpn/dh.pem
 ; When a client connects, check its certificate hasn't been revoked.
 ; Must be accessible without root privileges
