@@ -210,6 +210,17 @@ ynh_script_progression --message="Configuring fail2ban..." --time --weight=1
 ynh_add_fail2ban_config -t
 
 #=================================================
+# DOWNLOAD, CHECK AND UNPACK SOURCE
+#=================================================
+ynh_script_progression --message="Setting up source files..." --time --weight=1
+
+ynh_app_setting_set --app=$app --key=final_path --value=$final_path
+
+mkdir -p "$final_path"
+# Copy extra source files
+cp -a $YNH_CWD/../sources/extra_files/app/. "$final_path"
+
+#=================================================
 # RELOAD NGINX
 #=================================================
 ynh_script_progression --message="Reloading nginx web server..." --time --weight=1
