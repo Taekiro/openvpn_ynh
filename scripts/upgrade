@@ -153,6 +153,14 @@ webuser=${app}web
 ynh_system_user_create --username=$webuser --home_dir="$final_path"
 
 #=================================================
+# SETUP LOGROTATE
+#=================================================
+ynh_script_progression --message="Upgrading logrotate configuration..." --time --weight=1
+
+# Use logrotate to manage app-specific logfile(s)
+ynh_use_logrotate --non-append
+
+#=================================================
 # GENERIC FINALIZATION
 #=================================================
 # UPGRADE FAIL2BAN
