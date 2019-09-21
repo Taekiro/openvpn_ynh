@@ -105,9 +105,9 @@ ynh_install_app_dependencies "$pkg_dependencies"
 #=================================================
 # ADVERTISE SERVICE IN ADMIN PANEL
 #=================================================
-ynh_script_progression --message="Register service $app on admin panel..." --time --weight=1
+ynh_script_progression --message="Register service openvpn on admin panel..." --time --weight=1
 
-yunohost service add $app --log "/var/log/$app/$app.log" --description "OpenVPN server"
+yunohost service add openvpn --description "OpenVPN server"
 
 #=================================================
 # STUFF NOT YET SORTED...
@@ -153,12 +153,12 @@ ynh_systemd_action --action=restart --service_name=fail2ban
 #=================================================
 # START SYSTEMD SERVICE
 #=================================================
-ynh_script_progression --message="Starting systemd service $app..." --time --weight=1
+ynh_script_progression --message="Starting systemd service openvpn.." --time --weight=1
 
-yunohost service enable $app
+yunohost service enable openvpn
 
 # Start a systemd service
-ynh_systemd_action --service_name=$app --action=start
+ynh_systemd_action --service_name=openvpn --action=start
 
 #=================================================
 # GENERIC FINALIZATION
