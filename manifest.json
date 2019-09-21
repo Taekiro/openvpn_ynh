@@ -1,11 +1,11 @@
 {
-  "name": "VPN Server",
+  "name": "VPN server",
   "id": "vpnserver",
   "packaging_format": 1,
   "version": "2.4",
   "description": {
-    "en": "Your Secure and Private Tunnel to the Internet",
-    "fr": "Votre tunnel privé et sécurisé vers Internet"
+    "en": "A server providing Secure and Private Tunnel to the Internet",
+    "fr": "Un service permettant de fournir des tunnel privé et sécurisé vers Internet"
   },
   "requirements": {
       "yunohost": ">= 3.4.2.4"
