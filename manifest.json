@@ -1,6 +1,6 @@
 {
-  "name": "OpenVPN",
-  "id": "openvpn",
+  "name": "VPN Server",
+  "id": "vpnserver",
   "packaging_format": 1,
   "version": "2.4",
   "description": {
@@ -41,8 +41,8 @@
                     "en": "Choose a path for OpenVPN",
                     "fr": "Choisissez un chemin pour OpenVPN"
                 },
-                "example": "/openvpn",
-                "default": "/openvpn"
+                "example": "/vpnserver",
+                "default": "/vpnserver"
             },
             {
                 "name": "dedicated_ip",
