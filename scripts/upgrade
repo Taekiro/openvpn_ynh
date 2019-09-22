@@ -117,7 +117,7 @@ path_url=$(ynh_normalize_url_path --path_url=$path_url)
 #=================================================
 ynh_script_progression --message="Stopping a systemd service..." --time --weight=1
 
-ynh_systemd_action --service_name=openvpn--action="stop"
+ynh_systemd_action --service_name=openvpn --action="stop"
 
 #=================================================
 # DOWNLOAD, CHECK AND UNPACK SOURCE
