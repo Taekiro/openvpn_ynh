@@ -115,8 +115,6 @@ setup_and_restart () {
     # Permissions
     ynh_set_default_perm "${final_path}" $webuser
     chown -R $webuser:www-data "${final_path}"
-    chown -R $user: /var/log/openvpn
-    chown -R $user: /etc/openvpn
     chmod 640 /etc/openvpn/users_settings.csv
     chmod u+x /etc/openvpn/handler.sh
 }

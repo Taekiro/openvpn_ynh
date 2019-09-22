@@ -78,7 +78,6 @@ if [ "${version}" = "2.3.4-2" ]; then
     mkdir -p /etc/openvpn/users
     touch /etc/openvpn/ip4_attribution.csv
     cp ../conf/handler.sh /etc/openvpn/handler.sh
-    chown -R $user: /etc/openvpn
     chmod 640 /etc/openvpn/ip4_attribution.csv
     chmod u+x /etc/openvpn/handler.sh
 fi
@@ -196,8 +195,8 @@ find "$final_path" -type d -print0 | xargs -0 chmod 775
 chown -R $webuser:www-data "$final_path"
 chmod 640 "$final_path/$domain.conf"
 chmod 640 "$final_path/$domain.ovpn"
-chown -R $app: /var/log/openvpn
-chown -R $app: /etc/openvpn
+chown -R root:root /var/log/openvpn
+chown -R root:root /etc/openvpn
 chmod 640 /etc/openvpn/users_settings.csv
 chmod u+x /etc/openvpn/handler.sh
 
