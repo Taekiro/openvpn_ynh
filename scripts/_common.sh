@@ -56,7 +56,7 @@ install_files () {
     export domain=$domain
     export port=$port
     export dedicated_ip=$dedicated_ip
-    export base_cert_path=$(ls -d /etc/yunohost/certs/$domain/-history/*.selfsigned)
+    export base_cert_path=$(ls -d /etc/yunohost/certs/$domain-history/*.selfsigned)
     set -x
     install -b -o root -g root -m 0644 ../conf/server.conf.j2 /etc/openvpn/
     install -b -o root -g root -m 0644 ../conf/client.conf.j2 /etc/openvpn/
