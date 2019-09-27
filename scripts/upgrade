@@ -120,18 +120,6 @@ ynh_script_progression --message="Stopping a systemd service..." --time --weight
 ynh_systemd_action --service_name=openvpn --action="stop"
 
 #=================================================
-# DOWNLOAD, CHECK AND UNPACK SOURCE
-#=================================================
-
-if [ "$upgrade_type" == "UPGRADE_APP" ]
-then
-    ynh_script_progression --message="Upgrading source files..." --time --weight=1
-
-    # Copy extra source files
-    cp -a $YNH_CWD/../sources/extra_files/app/. "$final_path"
-fi
-
-#=================================================
 # NGINX CONFIGURATION
 #=================================================
 ynh_script_progression --message="Upgrading nginx web server configuration..." --time --weight=1
