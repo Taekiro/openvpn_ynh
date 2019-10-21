@@ -21,8 +21,8 @@ max-clients 30
 tls-server
 
 ca   {{ base_cert_path }}/ca.pem
-cert {{ domain }}/crt.pem
-key  {{ domain }}/key.pem
+cert {{ base_cert_path }}/crt.pem
+key  {{ base_cert_path }}/key.pem
 dh   /etc/openvpn/dh.pem
 ; When a client connects, check its certificate hasn't been revoked.
 ; Must be accessible without root privileges
