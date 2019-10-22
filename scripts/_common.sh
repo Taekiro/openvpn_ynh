@@ -62,7 +62,7 @@ install_files () {
     install -b -o root -g root -m 0644 ../conf/client.conf.j2 /etc/openvpn/
     install -b -o root -g root -m 0644 ../conf/client.ovpn.j2 /etc/openvpn/
     install -b -o root -g root -m 0644 ../conf/ldap.conf /etc/openvpn/auth/
-    cp ../conf/handler.sh /etc/openvpn/handler.sh
+    install -b -o root -g root -m 0755 ../conf/handler.sh /etc/openvpn/
     touch /etc/openvpn/crl.pem
     echo "$ip4ranges" | tee /etc/openvpn/ip4ranges
 
@@ -115,8 +115,8 @@ setup_and_restart () {
     # Permissions
     ynh_set_default_perm "${final_path}" $webuser
     chown -R $webuser:www-data "${final_path}"
+    chown -R openvpn: /etc/openvpn
     chmod 640 /etc/openvpn/users_settings.csv
-    chmod u+x /etc/openvpn/handler.sh
 }
 
 #============================================================
