@@ -133,10 +133,15 @@ ynh_add_nginx_config
 #=================================================
 # CREATE DEDICATED USER
 #=================================================
-ynh_script_progression --message="Configuring system user..." --time --weight=1
+ynh_script_progression --message="Configuring system users and setting sudoers..." --time --weight=1
 
-# Create a system user
-ynh_system_user_create --username=$app
+# Create a dedicated users (if not existing)
+ynh_system_user_create --username=$user --home_dir="/etc/openvpn/"
+ynh_system_user_create --username=$webuser --home_dir="$final_path"
+
+# Ensure the system user has enough permissions
+install -b -o root -g root -m 0440 ../conf/sudoers.conf /etc/sudoers.d/${app}_ynh
+ynh_replace_string "__VPNSERVER_SYSUSER__" "${user}" /etc/sudoers.d/${app}_ynh
 
 #=================================================
 # PHP-FPM CONFIGURATION

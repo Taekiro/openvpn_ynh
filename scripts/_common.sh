@@ -71,8 +71,8 @@ install_files () {
 }
 
 setup_and_restart () {
-    # Find gateway ip and mask and save it
 
+    # Find gateway ip and mask and save it
     first_ip4_range=$(echo $ip4ranges | cut -f1 -d" ")
     first_ip=$(netmask -r $first_ip4_range | cut -f1 -d"-" )
     first_ip=$( netmask -x $first_ip )
@@ -91,18 +91,6 @@ setup_and_restart () {
         yunohost firewall allow Both $port > /dev/null 2>&1
     fi
 
-    # Create user
-    if ! ynh_system_user_exists ${user}; then
-        ynh_system_user_create "$user" "/etc/openvpn/"
-    fi
-    if ! ynh_system_user_exists ${webuser}; then
-        ynh_system_user_create "$webuser" "$final_path"
-    fi
-
-    # Ensure the system user has enough permissions
-    install -b -o root -g root -m 0440 ../conf/sudoers.conf /etc/sudoers.d/${app}_ynh
-    ynh_replace_string "__VPNCLIENT_SYSUSER__" "${user}" /etc/sudoers.d/${app}_ynh
-
     # Copy files
     install_files
     sysctl -p /etc/sysctl.d/openvpn.conf
@@ -115,7 +103,7 @@ setup_and_restart () {
     # Permissions
     ynh_set_default_perm "${final_path}" $webuser
     chown -R $webuser:www-data "${final_path}"
-    chown -R openvpn: /etc/openvpn
+    chown -R $user: /etc/openvpn
     chmod 640 /etc/openvpn/users_settings.csv
 }
 
@@ -131,8 +119,4 @@ ynh_set_default_perm () {
     chmod -R 664 $DIRECTORY
     find $DIRECTORY -type d -print0 | xargs -0 chmod 775 \
         || echo "No file to modify"
-}
-
-ynh_read_json () {
-    python3 -c "import sys, json;print(json.load(open('$1'))['$2'])"
 }

@@ -22,7 +22,7 @@ final_path=$(ynh_app_setting_get --app=$app --key=final_path)
 port=$(ynh_app_setting_get --app=$app --key=port)
 
 user=$app
-webuser="${user}web"
+webuser="${app}web"
 
 #=================================================
 # CHECK VERSION
@@ -147,10 +147,13 @@ ynh_install_app_dependencies $pkg_dependencies
 #=================================================
 ynh_script_progression --message="Making sure dedicated system users exists..." --time --weight=1
 
-# Create a dedicated user (if not existing)
-ynh_system_user_create --username=$app --home_dir="/etc/openvpn/"
-webuser=${app}web
+# Create dedicated users (if not existing)
+ynh_system_user_create --username=$user --home_dir="/etc/openvpn/"
 ynh_system_user_create --username=$webuser --home_dir="$final_path"
+
+# Ensure the system user has enough permissions
+install -b -o root -g root -m 0440 ../conf/sudoers.conf /etc/sudoers.d/${app}_ynh
+ynh_replace_string "__VPNSERVER_SYSUSER__" "${user}" /etc/sudoers.d/${app}_ynh
 
 #=================================================
 # SETUP LOGROTATE
