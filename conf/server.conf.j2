@@ -1,7 +1,7 @@
 # GENERAL
 ; Drop privileges
-user openvpn
-group openvpn
+user vpnserver
+group vpnserver
 
 ; Don't re-read keys at ping-restart (because of dropped privileges)
 persist-key
@@ -24,9 +24,6 @@ ca   {{ base_cert_path }}/ca.pem
 cert {{ base_cert_path }}/crt.pem
 key  {{ base_cert_path }}/key.pem
 dh   /etc/openvpn/dh.pem
-; When a client connects, check its certificate hasn't been revoked.
-; Must be accessible without root privileges
-crl-verify /etc/openvpn/crl.pem
 
 ; Certificates from the clients must have a field guaranteeing they really are client certificates
 remote-cert-tls client
