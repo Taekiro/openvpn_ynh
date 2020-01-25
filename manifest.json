@@ -64,7 +64,7 @@
                 },
                 "example": "169.254.10.25 169.254.10.32 169.254.11.0/29",
                 "default": "",
-                "optional": false
+                "optional": true
             }
         ]
     }
