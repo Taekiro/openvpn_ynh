@@ -1,7 +1,7 @@
 OpenVPN server for YunoHost
 --------------------
 
-[![Integration level](https://dash.yunohost.org/integration/vpnserver_ynh.svg)](https://dash.yunohost.org/appci/app/vpnserver_ynh)
+[![Integration level](https://dash.yunohost.org/integration/vpnserver_ynh.svg)](https://dash.yunohost.org/appci/app/vpnserver)
 
 [![Install vpnserver_ynh with YunoHost](https://install-app.yunohost.org/install-with-yunohost.png)](https://install-app.yunohost.org/?app=vpnserver_ynh)
 
